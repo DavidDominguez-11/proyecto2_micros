@@ -3,10 +3,15 @@
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
+#include <omp.h>  // Incluir OpenMP
 
 // Cambiamos la función para devolver el array de primos y el conteo
 int* sieve_of_eratosthenes(int limit, int* count_out) {
     bool *prime = malloc((limit + 1) * sizeof(bool));
+    if (prime == NULL) {
+        perror("Failed to allocate memory for prime array");
+        exit(EXIT_FAILURE);
+    }
     for (int i = 0; i <= limit; i++) {
         prime[i] = true;
     }
@@ -29,6 +34,11 @@ int* sieve_of_eratosthenes(int limit, int* count_out) {
     }
 
     int *primes = malloc(count * sizeof(int));
+    if (primes == NULL) {
+        perror("Failed to allocate memory for primes array");
+        free(prime);
+        exit(EXIT_FAILURE);
+    }
     int index = 0;
     for (int p = 2; p <= limit; p++) {
         if (prime[p]) {
@@ -44,11 +54,12 @@ int* sieve_of_eratosthenes(int limit, int* count_out) {
 }
 
 int main() {
-    clock_t start_time, end_time, sequence_start, parallel_start;
+    clock_t start_time, end_time;
     double time_taken;
     
     int limit = 99999999; // Ajusta este valor según sea necesario
     int count = 0; // Variable para almacenar el número de primos
+    
     start_time = clock();
     
     // Llama a la función y obtiene el array de primos
@@ -63,11 +74,10 @@ int main() {
     int anchor = primes[rand() % count];
     int key = anchor * primes[rand() % count]; // Utiliza índices válidos dentro del rango de primos
 
-    bool mining =  true;
-
-    sequence_start = clock();
-    while(mining == true){
-          for (int i = 0; i < count; i++) {  // Utiliza count en lugar de primes.size()
+    bool mining = true;
+    clock_t sequence_start = clock();
+    while(mining) {
+        for (int i = 0; i < count; i++) {  // Utiliza count en lugar de primes.size()
             for (int j = 0; j < count; j++) {  // Corrige el bucle interno con j++
                 int trying = primes[i] * primes[j];
                 if (trying == key && primes[i] == anchor) {
@@ -79,31 +89,41 @@ int main() {
                     break;
                 }
             }
-            if(mining == false) break;
-        }
-    }
-    printf("Inicio paraelo\n");
-    bool mining2 = true;
-    parallel_start = clock();
-    while(mining2 == true){
-        #pragma omp parallel for 
-            for (int i = 0; i < count; i++) {  // Utiliza count en lugar de primes.size()
-            for (int j = 0; j < count; j++) {  // Corrige el bucle interno con j++
-                int trying = primes[i] * primes[j];
-                if (trying == key && primes[i] == anchor) {
-                    printf("Clave encontrada: %d\n", trying);
-                    time_taken = ((double) (clock() - parallel_start)) / CLOCKS_PER_SEC;
-                    printf("Tempo en paralelo: %.2f seconds\n", time_taken);
-                    printf("Multiplicacion de primos %d * %d = %d, la llave era: %d\n", primes[i], primes[j], trying, key);
-                    mining2 = false;
-                }
-                if(mining2 == false) break;
-            }
-            if(mining2 == false) break;
+            if (!mining) break;
         }
     }
 
-    printf("Se acabaron los primos");
+    printf("Inicio paralelo\n");
+    bool mining2 = true;
+    double parallel_start = clock();
+    #pragma omp parallel
+    {
+        #pragma omp single
+        {
+            while (mining2) {
+                #pragma omp parallel for collapse(2)
+                for (int i = 0; i < count; i++) {
+                    for (int j = 0; j < count; j++) {
+                        int trying = primes[i] * primes[j];
+                        if (trying == key && primes[i] == anchor) {
+                            #pragma omp critical
+                            {
+                                if (mining2) {
+                                    printf("Clave encontrada: %d\n", trying);
+                                    double parallel_time = (clock() - parallel_start)/1000;
+                                    printf("Tiempo en paralelo: %.2f seconds\n", parallel_time);
+                                    printf("Multiplicacion de primos %d * %d = %d, la llave era: %d\n", primes[i], primes[j], trying, key);
+                                    mining2 = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    printf("Se acabaron los primos\n");
 
     free(primes); // Liberar la memoria del array de primos
     return 0;
