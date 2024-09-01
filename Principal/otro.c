@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
+#include <omp.h>
 
 // Cambiamos la función para devolver el array de primos y el conteo
 int* sieve_of_eratosthenes(int limit, int* count_out) {
@@ -82,29 +83,32 @@ int main() {
             if(mining == false) break;
         }
     }
-    printf("Inicio paraelo\n");
+    printf("Inicio paralelo\n");
     bool mining2 = true;
-    parallel_start = clock();
-    while(mining2 == true){
-        #pragma omp parallel for 
-            for (int i = 0; i < count; i++) {  // Utiliza count en lugar de primes.size()
-            for (int j = 0; j < count; j++) {  // Corrige el bucle interno con j++
-                int trying = primes[i] * primes[j];
-                if (trying == key && primes[i] == anchor) {
-                    printf("Clave encontrada: %d\n", trying);
-                    time_taken = ((double) (clock() - parallel_start)) / CLOCKS_PER_SEC;
-                    printf("Tempo en paralelo: %.2f seconds\n", time_taken);
-                    printf("Multiplicacion de primos %d * %d = %d, la llave era: %d\n", primes[i], primes[j], trying, key);
-                    mining2 = false;
+
+    // Ejecución paralela
+    start_time = omp_get_wtime();
+    #pragma omp parallel for schedule(dynamic) shared(mining2)
+    for (int i = 0; i < count; i++) {
+        for (int j = 0; j < count; j++) {
+            if (!mining2) continue;
+
+            int trying = primes[i] * primes[j];
+            if (trying == key && primes[i] == anchor) {
+                #pragma omp critical
+                {
+                    if (mining2) {
+                        end_time = omp_get_wtime();
+                        printf("Clave encontrada: %d\n", trying);
+                        printf("Tiempo en paralelo: %.2f seconds\n", end_time - start_time);
+                        printf("Multiplicacion de primos %d * %d = %d, la llave era: %d\n", primes[i], primes[j], trying, key);
+                        mining2 = false;
+                    }
                 }
-                if(mining2 == false) break;
             }
-            if(mining2 == false) break;
         }
     }
 
-    printf("Se acabaron los primos");
-
-    free(primes); // Liberar la memoria del array de primos
+    free(primes);
     return 0;
 }
