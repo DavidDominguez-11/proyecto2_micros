@@ -1,3 +1,7 @@
+//David Dominguez - 23712
+//Luis Francisco - 23663
+//Gabriel Bran - 23590
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
